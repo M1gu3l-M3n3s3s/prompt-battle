@@ -10,7 +10,7 @@ interface Props {
 
 export default function ResultsPage({ appState, onNavigate }: Props) {
   const { socket } = useSocket();
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const { room, winner } = state;
 
   const currentPlayer = room?.players.find(p => p.id === appState.playerId);
@@ -19,6 +19,7 @@ export default function ResultsPage({ appState, onNavigate }: Props) {
   const isWinner = winner?.id === appState.playerId;
 
   const handlePlayAgain = () => {
+    dispatch({ type: 'RESET' });
     socket?.emit('leave_room');
     onNavigate('home');
   };

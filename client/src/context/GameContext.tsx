@@ -38,7 +38,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'SET_PLAYER':
       return { ...state, playerId: action.playerId, username: action.username };
     case 'SET_PHASE':
-      return { ...state, phase: action.phase, eliminatedPlayerId: null };
+      return { ...state, phase: action.phase };
     case 'TIMER_TICK':
       return { ...state, timer: action.time };
     case 'PLAYER_ELIMINATED':

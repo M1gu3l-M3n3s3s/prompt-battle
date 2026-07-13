@@ -79,7 +79,7 @@ export class GameManager {
         playerId = room.players[idx].id;
         room.players.splice(idx, 1);
       }
-      if (room.players.length > 0 && room.players[0]) {
+      if (room.players.length > 0 && !room.players.some(p => p.isHost)) {
         room.players[0].isHost = true;
       }
       if (room.players.length === 0) {
@@ -129,13 +129,17 @@ export class GameManager {
       return false;
     }
 
+    if (typeof prompt !== 'string' || prompt.trim().length < 10 || prompt.trim().length > 500) {
+      return false;
+    }
+
     const player = room.players.find(p => p.socketId === socketId);
     if (!player || player.eliminated || player.hasSubmitted) {
       console.log(`[submitPrompt] FAIL: player=${!!player}, eliminated=${player?.eliminated}, hasSubmitted=${player?.hasSubmitted}`);
       return false;
     }
 
-    room.prompts.push({ playerId: player.id, prompt });
+    room.prompts.push({ playerId: player.id, prompt: prompt.trim() });
     player.hasSubmitted = true;
     console.log(`[submitPrompt] OK: player=${player.username}(${player.id}), prompts=${room.prompts.length}/${this.getActivePlayers(room).length}`);
 
@@ -214,6 +218,9 @@ export class GameManager {
     if (voter.id === targetId) return false;
     if (room.votes.some(v => v.voterId === voter.id)) return false;
 
+    const target = room.players.find(p => p.id === targetId);
+    if (!target || target.eliminated) return false;
+
     room.votes.push({ voterId: voter.id, targetId });
     voter.hasVoted = true;
     return true;
@@ -245,6 +252,8 @@ export class GameManager {
     if (results.length === 0) return null;
 
     const maxVotes = Math.max(...results.map(r => r.votes));
+    if (maxVotes === 0) return null;
+
     const eliminated = results.filter(r => r.votes === maxVotes);
 
     const eliminatedPlayer = eliminated.length === 1
@@ -342,10 +351,7 @@ export class GameManager {
         hasVoted: p.hasVoted,
       })),
       images: room.phase === 'generating' || room.phase === 'voting' || room.phase === 'reveal' || room.phase === 'finished'
-        ? room.images.map(i => ({
-            ...i,
-            playerId: room.phase === 'voting' ? undefined : i.playerId,
-          }))
+        ? room.images.map(i => ({ ...i }))
         : [],
       votes: room.phase === 'reveal' || room.phase === 'finished'
         ? room.votes

@@ -29,7 +29,7 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
 
     socket.on('phase_change', handlePhaseChange);
     return () => { socket.off('phase_change', handlePhaseChange); };
-  }, [socket, appState.roomCode, appState.username, currentPlayer]);
+  }, [socket, appState.roomCode, appState.username, currentPlayer?.id]);
 
   const handleStart = () => {
     if (!socket) return;
@@ -63,7 +63,7 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
 
       <div className="flex-1 flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto w-full">
         <div className="flex-1">
-          <PlayerList players={players} currentUsername={appState.username} />
+          <PlayerList players={players} currentPlayerId={appState.playerId} />
         </div>
         <div className="w-full lg:w-80">
           <Chat roomCode={appState.roomCode} />

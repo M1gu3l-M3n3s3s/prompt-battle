@@ -20,8 +20,12 @@ export default function GamePage({ appState, onNavigate }: Props) {
   const { room, phase, timer, eliminatedPlayerId } = state;
   const [imagesReady, setImagesReady] = useState<Set<number>>(new Set());
 
+  React.useEffect(() => {
+    setImagesReady(new Set());
+  }, [room?.round]);
+
   const handleAdvance = () => {
-    socket?.emit('advance_reveal', { code: appState.roomCode });
+    socket?.emit('advance_reveal');
   };
 
   const currentPlayer = room?.players.find(p => p.id === appState.playerId);
@@ -30,17 +34,20 @@ export default function GamePage({ appState, onNavigate }: Props) {
     if (phase === 'finished') {
       onNavigate('results', { roomCode: appState.roomCode, username: appState.username, playerId: appState.playerId });
     }
-  }, [phase]);
+  }, [phase, appState.roomCode, appState.username, appState.playerId, onNavigate]);
 
   React.useEffect(() => {
     if (phase !== 'generating' || !room?.images.length) return;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
     room.images.forEach((img, idx) => {
-      setTimeout(() => {
+      const t = setTimeout(() => {
         const preload = new Image();
         preload.onload = () => setImagesReady(prev => new Set(prev).add(idx));
         preload.src = img.imageUrl;
       }, idx * 5000);
+      timeouts.push(t);
     });
+    return () => timeouts.forEach(clearTimeout);
   }, [phase, room?.images.length]);
 
   if (!room) {
@@ -62,7 +69,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
             {getPhaseLabel(phase)}
           </p>
         </div>
-        <Timer seconds={timer} />
+        <Timer seconds={timer} max={phase === 'generating' ? 60 : phase === 'reveal' ? 10 : 30} />
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">{appState.username}</span>
           <span className="text-xs text-gray-600">Sala: {room.code}</span>
@@ -74,7 +81,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
           {phase === 'prompt_writing' && (
             <div className="animate-fade-in space-y-6">
               <ThemeDisplay theme={room.currentTheme} />
-              <PromptInput playerId={appState.playerId} />
+              <PromptInput key={room.round} playerId={appState.playerId} />
             </div>
           )}
 

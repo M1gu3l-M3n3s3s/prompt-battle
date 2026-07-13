@@ -2,10 +2,10 @@ import type { Player } from '../types';
 
 interface Props {
   players: Player[];
-  currentUsername: string;
+  currentPlayerId: string;
 }
 
-export default function PlayerList({ players, currentUsername }: Props) {
+export default function PlayerList({ players, currentPlayerId }: Props) {
   return (
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-800">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -18,7 +18,7 @@ export default function PlayerList({ players, currentUsername }: Props) {
             key={player.id}
             className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
               player.eliminated ? 'opacity-40' : ''
-            } ${player.username === currentUsername ? 'bg-primary-500/10 border border-primary-500/30' : 'hover:bg-gray-800/50'}`}
+            } ${player.id === currentPlayerId ? 'bg-primary-500/10 border border-primary-500/30' : 'hover:bg-gray-800/50'}`}
           >
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
               player.isHost ? 'bg-primary-600' : 'bg-gray-700'
@@ -28,7 +28,7 @@ export default function PlayerList({ players, currentUsername }: Props) {
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">
                 {player.username}
-                {player.username === currentUsername && <span className="text-xs text-primary-400 ml-1">(tú)</span>}
+                {player.id === currentPlayerId && <span className="text-xs text-primary-400 ml-1">(tú)</span>}
               </p>
               <div className="flex gap-3 text-xs text-gray-500">
                 <span>{player.score} pts</span>

@@ -2,11 +2,14 @@ import { formatTimer } from '../utils/api';
 
 interface Props {
   seconds: number;
+  max?: number;
 }
 
-export default function Timer({ seconds }: Props) {
+export default function Timer({ seconds, max = 60 }: Props) {
   const isLow = seconds <= 10;
   const isCritical = seconds <= 5;
+  const circumference = 2 * Math.PI * 28;
+  const progress = Math.min(seconds / max, 1);
 
   return (
     <div className={`flex items-center gap-3 ${isCritical ? 'animate-shake' : ''}`}>
@@ -15,7 +18,7 @@ export default function Timer({ seconds }: Props) {
           <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-gray-800" />
           <circle
             cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4"
-            strokeDasharray={`${(seconds / 60) * 176}`}
+            strokeDasharray={`${progress * circumference} ${circumference}`}
             strokeDashoffset="0"
             className={`${isCritical ? 'text-red-500' : isLow ? 'text-yellow-400' : 'text-primary-400'} transition-all duration-1000`}
             strokeLinecap="round"

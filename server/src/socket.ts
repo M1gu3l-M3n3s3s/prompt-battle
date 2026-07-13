@@ -3,6 +3,7 @@ import { GameManager } from './GameManager';
 
 export function setupSocket(io: Server): GameManager {
   const gameManager = new GameManager();
+  const activeTimers = new Set<string>();
 
   io.on('connection', (socket: Socket) => {
     console.log(`[+] ${socket.id} connected`);
@@ -28,13 +29,15 @@ export function setupSocket(io: Server): GameManager {
       io.to(code).emit('room_update', gameManager.getPublicRoomState(code));
     });
 
-    socket.on('start_game', (data: { code: string }, callback: (res: { success: boolean; error?: string }) => void) => {
-      const success = gameManager.startGame(data.code);
+    socket.on('start_game', (_data: unknown, callback: (res: { success: boolean; error?: string }) => void) => {
+      const room = gameManager.getRoomBySocket(socket.id);
+      if (!room) return callback({ success: false, error: 'No estás en una sala' });
+      const success = gameManager.startGame(room.code);
       if (!success) return callback({ success: false, error: 'No se puede iniciar (mín 2 jugadores)' });
       callback({ success: true });
-      io.to(data.code).emit('room_update', gameManager.getPublicRoomState(data.code));
-      io.to(data.code).emit('phase_change', 'prompt_writing');
-      startTimerLoop(io, gameManager, data.code);
+      io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
+      io.to(room.code).emit('phase_change', 'prompt_writing');
+      startTimerLoop(io, gameManager, room.code, activeTimers);
     });
 
       socket.on('submit_prompt', (data: { prompt: string }, callback: (res: { success: boolean }) => void) => {
@@ -71,9 +74,10 @@ export function setupSocket(io: Server): GameManager {
       }
     });
 
-    socket.on('advance_reveal', (data: { code: string }) => {
-      console.log(`[advance_reveal] room=${data.code}`);
-      advanceAfterReveal(io, gameManager, data.code);
+    socket.on('advance_reveal', () => {
+      const room = gameManager.getRoomBySocket(socket.id);
+      if (!room || room.phase !== 'reveal') return;
+      advanceAfterReveal(io, gameManager, room.code);
     });
 
     socket.on('chat_message', (data: { roomCode: string; text: string }) => {
@@ -81,7 +85,8 @@ export function setupSocket(io: Server): GameManager {
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
-      const msg = { id: `${Date.now()}-${socket.id}`, username: player.username, text: data.text, timestamp: Date.now() };
+      if (typeof data.text !== 'string' || data.text.trim().length === 0 || data.text.length > 200) return;
+      const msg = { id: `${Date.now()}-${socket.id}`, username: player.username, text: data.text.trim(), timestamp: Date.now() };
       io.to(data.roomCode).emit('chat_message', msg);
     });
 
@@ -106,10 +111,16 @@ export function setupSocket(io: Server): GameManager {
   return gameManager;
 }
 
-function startTimerLoop(io: Server, gm: GameManager, code: string) {
+function startTimerLoop(io: Server, gm: GameManager, code: string, activeTimers: Set<string>) {
+  if (activeTimers.has(code)) return;
+  activeTimers.add(code);
+
   const tick = () => {
     const room = gm.getRoom(code);
-    if (!room || room.phase === 'finished' || room.phase === 'waiting') return;
+    if (!room || room.phase === 'finished' || room.phase === 'waiting') {
+      activeTimers.delete(code);
+      return;
+    }
 
     const remaining = room.timerEndsAt ? Math.max(0, Math.ceil((room.timerEndsAt - Date.now()) / 1000)) : 0;
     io.to(code).emit('timer_tick', remaining);

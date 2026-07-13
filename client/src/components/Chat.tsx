@@ -21,7 +21,7 @@ export default function Chat({ roomCode }: Props) {
   useEffect(() => {
     if (!socket) return;
     const handler = (msg: Message) => {
-      setMessages(prev => [...prev, msg]);
+      setMessages(prev => [...prev.slice(-99), msg]);
     };
     socket.on('chat_message', handler);
     return () => { socket.off('chat_message', handler); };

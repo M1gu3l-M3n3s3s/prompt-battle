@@ -19,6 +19,11 @@ function ImageWithRetry({ src, alt }: { src: string; alt: string }) {
   const mounted = useRef(true);
 
   const loadImage = useCallback(() => {
+    if (retries.current >= 5) {
+      if (!mounted.current) return;
+      setState('error');
+      return;
+    }
     retries.current += 1;
     const img = new Image();
     img.onload = () => {
@@ -42,6 +47,14 @@ function ImageWithRetry({ src, alt }: { src: string; alt: string }) {
 
   if (state === 'loaded') {
     return <img src={currentSrc} alt={alt} className="w-full h-48 md:h-56 object-cover" />;
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="w-full h-48 md:h-56 bg-gray-800 flex flex-col items-center justify-center">
+        <p className="text-gray-500 text-xs">Imagen no disponible</p>
+      </div>
+    );
   }
 
   return (
