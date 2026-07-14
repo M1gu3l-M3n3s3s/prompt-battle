@@ -164,6 +164,15 @@ function handlePhaseTimeout(io: Server, gm: GameManager, code: string) {
   }
 }
 
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 function generateImages(io: Server, gm: GameManager, code: string) {
   const room = gm.getRoom(code);
   if (!room) {
@@ -175,7 +184,7 @@ function generateImages(io: Server, gm: GameManager, code: string) {
   
   const imageEntries = room.prompts.map(p => ({
     playerId: p.playerId,
-    imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(p.prompt)}?width=400&height=400&seed=${p.playerId}&nologo=true`,
+    imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(p.prompt)}?width=400&height=400&seed=${hashString(p.prompt + code)}&nologo=true`,
   }));
   
   console.log(`[generateImages] Entries to submit: ${JSON.stringify(imageEntries.map(e => ({ playerId: e.playerId, url: e.imageUrl.substring(0, 60) + '...' })))}`);

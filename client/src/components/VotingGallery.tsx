@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useGame } from '../context/GameContext';
+import ImageWithRetry from './ImageWithRetry';
 import type { ImageData, VoteData, VoteResult, GamePhase } from '../types';
 
 interface Props {
@@ -10,60 +11,6 @@ interface Props {
   phase: GamePhase;
   voteResults: VoteResult[];
   eliminatedPlayerId: string | null;
-}
-
-function ImageWithRetry({ src, alt }: { src: string; alt: string }) {
-  const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading');
-  const [currentSrc, setCurrentSrc] = useState('');
-  const retries = useRef(0);
-  const mounted = useRef(true);
-
-  const loadImage = useCallback(() => {
-    if (retries.current >= 5) {
-      if (!mounted.current) return;
-      setState('error');
-      return;
-    }
-    retries.current += 1;
-    const img = new Image();
-    img.onload = () => {
-      if (!mounted.current) return;
-      setCurrentSrc(src);
-      setState('loaded');
-    };
-    img.onerror = () => {
-      if (!mounted.current) return;
-      const delay = Math.min(2000 * retries.current, 15000);
-      setTimeout(loadImage, delay);
-    };
-    img.src = src;
-  }, [src]);
-
-  useEffect(() => {
-    mounted.current = true;
-    loadImage();
-    return () => { mounted.current = false; };
-  }, [loadImage]);
-
-  if (state === 'loaded') {
-    return <img src={currentSrc} alt={alt} className="w-full h-48 md:h-56 object-cover" />;
-  }
-
-  if (state === 'error') {
-    return (
-      <div className="w-full h-48 md:h-56 bg-gray-800 flex flex-col items-center justify-center">
-        <p className="text-gray-500 text-xs">Imagen no disponible</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full h-48 md:h-56 bg-gray-800 flex flex-col items-center justify-center animate-pulse">
-      <div className="w-10 h-10 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-2" />
-      <p className="text-gray-400 text-xs font-medium">Generando imagen...</p>
-      <p className="text-gray-600 text-[10px] mt-1">Intento #{retries.current}</p>
-    </div>
-  );
 }
 
 export default function VotingGallery({ images, votes, playerId, phase, voteResults, eliminatedPlayerId }: Props) {
@@ -100,6 +47,13 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
 
   return (
     <div className="space-y-4">
+      {phase === 'voting' && !isEliminated && !hasVoted && (
+        <div className="bg-gradient-to-r from-primary-900/40 to-secondary-900/40 border border-primary-500/30 rounded-xl px-6 py-3 text-center animate-fade-in">
+          <p className="text-primary-300 font-medium">
+            Vota por el jugador que quieres eliminar
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {images.map((img, idx) => {
           const player = state.room?.players.find(p => img.playerId && p.id === img.playerId);

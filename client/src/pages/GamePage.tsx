@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useGame } from '../context/GameContext';
 import { useSocket } from '../context/SocketContext';
 import type { AppState } from '../App';
@@ -6,6 +6,7 @@ import Timer from '../components/Timer';
 import ThemeDisplay from '../components/ThemeDisplay';
 import PromptInput from '../components/PromptInput';
 import VotingGallery from '../components/VotingGallery';
+import ImageWithRetry from '../components/ImageWithRetry';
 import Leaderboard from '../components/Leaderboard';
 import { getPhaseLabel, getPhaseColor } from '../utils/api';
 
@@ -18,11 +19,6 @@ export default function GamePage({ appState, onNavigate }: Props) {
   const { socket } = useSocket();
   const { state } = useGame();
   const { room, phase, timer, eliminatedPlayerId } = state;
-  const [imagesReady, setImagesReady] = useState<Set<number>>(new Set());
-
-  React.useEffect(() => {
-    setImagesReady(new Set());
-  }, [room?.round]);
 
   const handleAdvance = () => {
     socket?.emit('advance_reveal');
@@ -35,20 +31,6 @@ export default function GamePage({ appState, onNavigate }: Props) {
       onNavigate('results', { roomCode: appState.roomCode, username: appState.username, playerId: appState.playerId });
     }
   }, [phase, appState.roomCode, appState.username, appState.playerId, onNavigate]);
-
-  React.useEffect(() => {
-    if (phase !== 'generating' || !room?.images.length) return;
-    const timeouts: ReturnType<typeof setTimeout>[] = [];
-    room.images.forEach((img, idx) => {
-      const t = setTimeout(() => {
-        const preload = new Image();
-        preload.onload = () => setImagesReady(prev => new Set(prev).add(idx));
-        preload.src = img.imageUrl;
-      }, idx * 5000);
-      timeouts.push(t);
-    });
-    return () => timeouts.forEach(clearTimeout);
-  }, [phase, room?.images.length]);
 
   if (!room) {
     return (
@@ -86,7 +68,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
           )}
 
           {(phase === 'generating') && (
-            <div className="flex-1 flex flex-col items-center justify-center animate-fade-in gap-8">
+            <div className="flex-1 flex flex-col items-center animate-fade-in gap-8">
               <ThemeDisplay theme={room.currentTheme} />
               <div className="text-center">
                 <div className="w-24 h-24 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-8" />
@@ -94,21 +76,21 @@ export default function GamePage({ appState, onNavigate }: Props) {
                 <p className="text-gray-500 mb-4">La IA está creando arte a partir de vuestros prompts</p>
                 <p className="text-gray-600 text-sm">Espera mientras se generan todas las imágenes — <span className="text-primary-400 font-bold">{timer}s</span></p>
               </div>
-              <div className="grid grid-cols-2 gap-4 w-full max-w-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-lg">
                 {room.players.filter(p => !p.eliminated).map(p => {
-                  const imgIdx = room.images.findIndex(i => i.playerId === p.id);
-                  const isLoaded = imgIdx !== -1 && imagesReady.has(imgIdx);
+                  const imgData = room.images.find(i => i.playerId === p.id);
                   return (
-                    <div key={p.id} className="bg-gray-900/60 rounded-xl p-4 text-center border border-gray-800">
-                      <p className="text-gray-400 text-sm truncate">"{room.images.find(i => i.playerId === p.id)?.prompt || p.username}"</p>
-                      {isLoaded ? (
-                        <span className="text-green-500 text-xs mt-2 block">✓ Lista</span>
+                    <div key={p.id} className="bg-gray-900/60 rounded-xl overflow-hidden border border-gray-800">
+                      {imgData ? (
+                        <ImageWithRetry src={imgData.imageUrl} alt={imgData.prompt} className="w-full h-40 object-cover" />
                       ) : (
-                        <div className="flex items-center justify-center gap-2 mt-2">
-                          <div className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                          <span className="text-purple-400 text-xs">Descargando...</span>
+                        <div className="w-full h-40 bg-gray-800 flex items-center justify-center">
+                          <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
                         </div>
                       )}
+                      <div className="p-3">
+                        <p className="text-gray-400 text-xs truncate">{imgData?.prompt || 'Esperando prompt...'}</p>
+                      </div>
                     </div>
                   );
                 })}
@@ -119,7 +101,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
           {(phase === 'voting' || phase === 'reveal') && (
             <div className="animate-fade-in space-y-6">
               <ThemeDisplay theme={room.currentTheme} />
-              <VotingGallery
+              <VotingGallery key={room.round}
                 images={room.images}
                 votes={room.votes}
                 playerId={appState.playerId}
