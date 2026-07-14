@@ -14,7 +14,7 @@ export default function ImageWithRetry({ src, alt, className }: Props) {
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   const loadImage = useCallback(() => {
-    if (retries.current >= 5) {
+    if (retries.current >= 3) {
       if (!mounted.current) return;
       setState('error');
       return;

@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import path from 'path';
 import cors from 'cors';
 import { setupSocket } from './socket';
+import { getImage } from './imageProxy';
 
 const app = express();
 app.use(cors());
@@ -17,6 +18,17 @@ const io = new Server(httpServer, {
 });
 
 setupSocket(io);
+
+app.get('/api/images/:roomId/:hash', (req, res) => {
+  const { roomId, hash } = req.params;
+  const image = getImage(roomId, hash);
+  if (!image) {
+    return res.status(404).send('Image not found');
+  }
+  res.set('Content-Type', 'image/png');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send(image);
+});
 
 app.get('*', (_req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));

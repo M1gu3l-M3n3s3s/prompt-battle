@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { GameManager } from './GameManager';
+import * as imageProxy from './imageProxy';
 
 export function setupSocket(io: Server): GameManager {
   const gameManager = new GameManager();
@@ -94,6 +95,8 @@ export function setupSocket(io: Server): GameManager {
       const { roomCode, playerId } = gameManager.removePlayer(socket.id);
       if (roomCode) {
         socket.leave(roomCode);
+        const room = gameManager.getRoom(roomCode);
+        if (!room) imageProxy.clearRoom(roomCode);
         io.to(roomCode).emit('room_update', gameManager.getPublicRoomState(roomCode));
       }
     });
@@ -103,6 +106,8 @@ export function setupSocket(io: Server): GameManager {
       const { roomCode } = gameManager.removePlayer(socket.id);
       if (roomCode) {
         socket.leave(roomCode);
+        const room = gameManager.getRoom(roomCode);
+        if (!room) imageProxy.clearRoom(roomCode);
         io.to(roomCode).emit('room_update', gameManager.getPublicRoomState(roomCode));
       }
     });
@@ -173,7 +178,7 @@ function hashString(str: string): number {
   return Math.abs(hash);
 }
 
-function generateImages(io: Server, gm: GameManager, code: string) {
+async function generateImages(io: Server, gm: GameManager, code: string) {
   const room = gm.getRoom(code);
   if (!room) {
     console.log(`[generateImages] FAIL: room not found for code=${code}`);
@@ -181,14 +186,23 @@ function generateImages(io: Server, gm: GameManager, code: string) {
   }
 
   console.log(`[generateImages] START: prompts=${room.prompts.length}, phase=${room.phase}`);
-  
-  const imageEntries = room.prompts.map(p => ({
-    playerId: p.playerId,
-    imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(p.prompt)}?width=400&height=400&seed=${hashString(p.prompt + code)}&nologo=true`,
-  }));
-  
-  console.log(`[generateImages] Entries to submit: ${JSON.stringify(imageEntries.map(e => ({ playerId: e.playerId, url: e.imageUrl.substring(0, 60) + '...' })))}`);
-  
+
+  const imageEntries: { playerId: string; imageUrl: string }[] = [];
+
+  for (const p of room.prompts) {
+    const hash = String(hashString(p.prompt + code));
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(p.prompt)}?width=400&height=400&seed=${hash}&nologo=true`;
+    const internalUrl = `/api/images/${code}/${hash}`;
+
+    imageEntries.push({ playerId: p.playerId, imageUrl: internalUrl });
+
+    imageProxy.fetchAndCache(code, hash, pollinationsUrl).then(success => {
+      if (success) {
+        io.to(code).emit('room_update', gm.getPublicRoomState(code));
+      }
+    });
+  }
+
   gm.submitImages(code, imageEntries);
   io.to(code).emit('room_update', gm.getPublicRoomState(code));
 }
@@ -204,6 +218,7 @@ function endVotingPhase(io: Server, gm: GameManager, code: string) {
 }
 
 function advanceAfterReveal(io: Server, gm: GameManager, code: string) {
+  imageProxy.clearRoom(code);
   const hasNext = gm.nextRound(code);
   const room = gm.getRoom(code);
 
