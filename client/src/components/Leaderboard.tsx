@@ -19,7 +19,7 @@ export default function Leaderboard({ players, currentPlayerId }: Props) {
             key={player.id}
             className={`flex items-center gap-3 p-3 ${
               player.id === currentPlayerId ? 'bg-primary-500/10' : ''
-            } ${player.eliminated ? 'opacity-40' : ''}`}
+            }`}
           >
             <span className={`w-6 text-center font-bold text-sm ${
               idx === 0 ? 'text-primary-400' : idx === 1 ? 'text-secondary-400' : idx === 2 ? 'text-accent-400' : 'text-gray-600'

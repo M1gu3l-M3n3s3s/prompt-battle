@@ -14,10 +14,9 @@ export default function PromptInput({ playerId }: Props) {
   const [error, setError] = useState('');
 
   const currentPlayer = state.room?.players.find(p => p.id === playerId);
-  const isEliminated = currentPlayer?.eliminated;
 
   const handleSubmit = () => {
-    if (!socket || !prompt.trim() || submitted || isEliminated) return;
+    if (!socket || !prompt.trim() || submitted) return;
     if (prompt.trim().length < 10) { setError('Mínimo 10 caracteres'); return; }
     if (prompt.trim().length > 500) { setError('Máximo 500 caracteres'); return; }
 
@@ -28,14 +27,6 @@ export default function PromptInput({ playerId }: Props) {
       }
     });
   };
-
-  if (isEliminated) {
-    return (
-      <div className="bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-red-500/20 p-6 text-center">
-        <p className="text-red-400">Has sido eliminado. Espera a la próxima ronda.</p>
-      </div>
-    );
-  }
 
   if (submitted) {
     return (

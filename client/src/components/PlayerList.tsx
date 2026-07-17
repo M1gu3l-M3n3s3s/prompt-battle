@@ -17,8 +17,8 @@ export default function PlayerList({ players, currentPlayerId }: Props) {
           <div
             key={player.id}
             className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
-              player.eliminated ? 'opacity-40' : ''
-            } ${player.id === currentPlayerId ? 'bg-primary-500/10 border border-primary-500/30' : 'hover:bg-gray-800/50'}`}
+              player.id === currentPlayerId ? 'bg-primary-500/10 border border-primary-500/30' : 'hover:bg-gray-800/50'
+            }`}
           >
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
               player.isHost ? 'bg-primary-600' : 'bg-gray-700'
@@ -35,8 +35,7 @@ export default function PlayerList({ players, currentPlayerId }: Props) {
                 {player.streak > 0 && <span className="text-accent-400">🔥 {player.streak}</span>}
               </div>
             </div>
-            {player.eliminated && <span className="text-red-400 text-sm">💀</span>}
-            {player.hasSubmitted && !player.eliminated && <span className="text-green-400 text-sm">✓</span>}
+            {player.hasSubmitted && <span className="text-green-400 text-sm">✓</span>}
           </div>
         ))}
         {players.length === 0 && (

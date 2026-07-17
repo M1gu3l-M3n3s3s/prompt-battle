@@ -5,7 +5,6 @@ export interface Player {
   isHost: boolean;
   score: number;
   streak: number;
-  eliminated: boolean;
   hasSubmitted: boolean;
   hasVoted: boolean;
 }
@@ -20,7 +19,6 @@ export interface Room {
   prompts: PromptSubmission[];
   images: ImageSubmission[];
   votes: Vote[];
-  roundOrder: string[];
   timerEndsAt: number | null;
 }
 
@@ -74,6 +72,41 @@ export const THEMES = [
   'Una batalla de rap entre inteligencias artificiales',
   'Un jardín zen con arena de oro líquido',
   'Una nave espacial hecha de madera reciclada',
+  'Un templo griego flotando entre las nubes',
+  'Una sirena pintando un mural en el fondo del océano',
+  'Un faraón egipcio jugando ajedrez con esfinges',
+  'Una bruja preparando un caldo en una cueva de cristal',
+  'Unos vikingos navegando en un barco hecho de huesos de ballena',
+  'Una ciudad maya oculta dentro de una cascada',
+  'Un león con corona de flores gobernando una selva brillante',
+  'Una procesión de esqueletos tocando mariachis en el desierto',
+  'Unos samuráis luchando bajo una lluvia de pétalos de cerezo',
+  'Unos gladiadores romanos luchando en una arena de arena dorada',
+  'Unos duendes construyendo una ciudad subterránea de gemas',
+  'Unos esquimales cazando una aurora boreal viviente',
+  'Unos piratas navegando en un barco fantasma por un río de lava',
+  'Unos ninjas luchando en un techo bajo la luz de la luna',
+  'Unos vaqueros cazando un bisonte mecánico en el Lejano Oeste',
+  'Unos magos mezclando pociones en una torre de arena',
+  'Unos exploradores descubriendo una ciudad perdida en la selva',
+  'Unos guerreros espartanos luchando contra una horda de zombis',
+  'Unos monjes budistas meditando en la cima de una montaña flotante',
+  'Unos gladiadores luchando en una arena submarina',
+  'Unos esquimales construyendo un iglú de diamantes',
+  'Unos vaqueros del desierto persiguiendo bandidos en motocicletas',
+  'Unos monjes tocando campanas en un templo de bambú',
+  'Unos exploradores del Ártico descubriendo un castillo de hielo',
+  'Una rana gigante gobernando un reino de nenúfares',
+  'Unos elfos construyendo una ciudad en las copas de los árboles',
+  'Unos centauros compitiendo en una carrera de caballos',
+  'Unos minotauros jugando ajedrez en un laberinto de mármol',
+  'Unos fénix renaciendo de las cenizas en un bosque encantado',
+  'Unos trolls construyendo un puente sobre un río de lava',
+  'Unos gnomos excavando en una mina de gemas brillantes',
+  'Unos hadas tejiendo telarañas de luz en un bosque nocturno',
+  'Unos ogros cocinando un festín en una cueva de montaña',
+  'Unos ogros cuidando un jardín de setas gigantes',
+  'Unos enanos forjando una espada legendaria en un volcán',
 ];
 
 export const PROMPT_TIME = 30;

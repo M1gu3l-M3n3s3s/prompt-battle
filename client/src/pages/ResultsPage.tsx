@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useGame } from '../context/GameContext';
 import type { AppState } from '../App';
@@ -52,7 +51,7 @@ export default function ResultsPage({ appState, onNavigate }: Props) {
                 key={player.id}
                 className={`flex items-center justify-between p-4 ${
                   player.id === appState.playerId ? 'bg-primary-500/10' : ''
-                } ${player.eliminated ? 'opacity-50' : ''}`}
+                }`}
               >
                 <div className="flex items-center gap-4">
                   <span className={`text-2xl font-bold ${idx === 0 ? 'text-primary-400' : idx === 1 ? 'text-secondary-400' : idx === 2 ? 'text-accent-400' : 'text-gray-600'}`}>
@@ -60,7 +59,6 @@ export default function ResultsPage({ appState, onNavigate }: Props) {
                   </span>
                   <div>
                     <p className="font-medium">{player.username}</p>
-                    {player.eliminated && <p className="text-xs text-red-400">Eliminado</p>}
                   </div>
                 </div>
                 <div className="text-right">

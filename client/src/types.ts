@@ -12,13 +12,12 @@ export interface Player {
   isHost: boolean;
   score: number;
   streak: number;
-  eliminated: boolean;
   hasSubmitted: boolean;
   hasVoted: boolean;
 }
 
 export interface ImageData {
-  playerId?: string;
+  playerId: string;
   imageUrl: string;
   prompt: string;
 }
@@ -44,10 +43,6 @@ export interface RoomState {
   votes: VoteData[];
   voteResults: VoteResult[];
   timerEndsAt: number | null;
-}
-
-export interface PlayerEliminated {
-  playerId: string;
 }
 
 export interface GameOverData {

@@ -18,7 +18,7 @@ interface Props {
 export default function GamePage({ appState, onNavigate }: Props) {
   const { socket } = useSocket();
   const { state } = useGame();
-  const { room, phase, timer, eliminatedPlayerId } = state;
+  const { room, phase, timer } = state;
 
   const handleAdvance = () => {
     socket?.emit('advance_reveal');
@@ -77,7 +77,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
                 <p className="text-gray-600 text-sm">Espera mientras se generan todas las imágenes — <span className="text-primary-400 font-bold">{timer}s</span></p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-lg">
-                {room.players.filter(p => !p.eliminated).map(p => {
+                {room.players.map(p => {
                   const imgData = room.images.find(i => i.playerId === p.id);
                   return (
                     <div key={p.id} className="bg-gray-900/60 rounded-xl overflow-hidden border border-gray-800">
@@ -107,7 +107,6 @@ export default function GamePage({ appState, onNavigate }: Props) {
                 playerId={appState.playerId}
                 phase={phase}
                 voteResults={room.voteResults}
-                eliminatedPlayerId={eliminatedPlayerId}
               />
             </div>
           )}
@@ -124,23 +123,14 @@ export default function GamePage({ appState, onNavigate }: Props) {
         </div>
       </div>
 
-      {eliminatedPlayerId && phase === 'reveal' && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-fade-in"
-             onClick={handleAdvance}>
-          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-red-500/30 animate-bounce-in max-w-sm"
-               onClick={e => e.stopPropagation()}>
-            <p className="text-4xl mb-4">💀</p>
-            <h3 className="text-2xl font-bold text-red-400 mb-2">Eliminado</h3>
-            <p className="text-gray-400 mb-6">
-              {room.players.find(p => p.id === eliminatedPlayerId)?.username || 'Alguien'} ha sido eliminado
-            </p>
-            <button
-              onClick={handleAdvance}
-              className="px-8 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl font-bold text-lg hover:from-primary-500 hover:to-secondary-500 transition-all duration-300"
-            >
-              Continuar
-            </button>
-          </div>
+      {phase === 'reveal' && currentPlayer?.isHost && (
+        <div className="flex justify-center mt-6">
+          <button
+            onClick={handleAdvance}
+            className="px-8 py-3 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl font-bold text-lg hover:from-primary-500 hover:to-secondary-500 transition-all duration-300 animate-pulse-glow"
+          >
+            Siguiente Ronda
+          </button>
         </div>
       )}
     </div>

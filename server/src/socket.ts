@@ -33,12 +33,25 @@ export function setupSocket(io: Server): GameManager {
     socket.on('start_game', (_data: unknown, callback: (res: { success: boolean; error?: string }) => void) => {
       const room = gameManager.getRoomBySocket(socket.id);
       if (!room) return callback({ success: false, error: 'No estás en una sala' });
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player?.isHost) return callback({ success: false, error: 'Solo el host puede iniciar' });
       const success = gameManager.startGame(room.code);
       if (!success) return callback({ success: false, error: 'No se puede iniciar (mín 2 jugadores)' });
       callback({ success: true });
       io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
       io.to(room.code).emit('phase_change', 'prompt_writing');
       startTimerLoop(io, gameManager, room.code, activeTimers);
+    });
+
+    socket.on('set_max_rounds', (data: { maxRounds: number }, callback: (res: { success: boolean; error?: string }) => void) => {
+      const room = gameManager.getRoomBySocket(socket.id);
+      if (!room) return callback({ success: false, error: 'No estás en una sala' });
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player?.isHost) return callback({ success: false, error: 'Solo el host puede cambiar rondas' });
+      const success = gameManager.setMaxRounds(room.code, data.maxRounds);
+      if (!success) return callback({ success: false, error: 'Número de rondas inválido (2-5)' });
+      callback({ success: true });
+      io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
     });
 
       socket.on('submit_prompt', (data: { prompt: string }, callback: (res: { success: boolean }) => void) => {
@@ -78,21 +91,23 @@ export function setupSocket(io: Server): GameManager {
     socket.on('advance_reveal', () => {
       const room = gameManager.getRoomBySocket(socket.id);
       if (!room || room.phase !== 'reveal') return;
+      const player = room.players.find(p => p.socketId === socket.id);
+      if (!player?.isHost) return;
       advanceAfterReveal(io, gameManager, room.code);
     });
 
     socket.on('chat_message', (data: { roomCode: string; text: string }) => {
-      const room = gameManager.getRoom(data.roomCode);
+      const room = gameManager.getRoomBySocket(socket.id);
       if (!room) return;
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
       if (typeof data.text !== 'string' || data.text.trim().length === 0 || data.text.length > 200) return;
       const msg = { id: `${Date.now()}-${socket.id}`, username: player.username, text: data.text.trim(), timestamp: Date.now() };
-      io.to(data.roomCode).emit('chat_message', msg);
+      io.to(room.code).emit('chat_message', msg);
     });
 
     socket.on('leave_room', () => {
-      const { roomCode, playerId } = gameManager.removePlayer(socket.id);
+      const { roomCode } = gameManager.removePlayer(socket.id);
       if (roomCode) {
         socket.leave(roomCode);
         const room = gameManager.getRoom(roomCode);
@@ -209,11 +224,9 @@ async function generateImages(io: Server, gm: GameManager, code: string) {
 
 function endVotingPhase(io: Server, gm: GameManager, code: string) {
   gm.awardPoints(code);
-  const eliminatedId = gm.processElimination(code);
   gm.startRevealPhase(code);
 
   io.to(code).emit('phase_change', 'reveal');
-  io.to(code).emit('player_eliminated', eliminatedId);
   io.to(code).emit('room_update', gm.getPublicRoomState(code));
 }
 
@@ -226,7 +239,12 @@ function advanceAfterReveal(io: Server, gm: GameManager, code: string) {
 
   if (room.phase === 'finished' || !hasNext) {
     const winner = gm.getWinner(code);
-    io.to(code).emit('game_over', { winner });
+    if (winner) {
+      const { socketId: _, ...publicWinner } = winner;
+      io.to(code).emit('game_over', { winner: publicWinner });
+    } else {
+      io.to(code).emit('game_over', { winner: null });
+    }
     io.to(code).emit('phase_change', 'finished');
     io.to(code).emit('room_update', gm.getPublicRoomState(code));
     return;

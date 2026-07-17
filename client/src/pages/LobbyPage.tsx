@@ -14,6 +14,18 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
   const { socket } = useSocket();
   const { state } = useGame();
   const [error, setError] = useState('');
+  const [maxRounds, setMaxRounds] = useState(state.room?.maxRounds || 5);
+
+  const handleSetMaxRounds = (value: number) => {
+    if (!socket) return;
+    setMaxRounds(value);
+    socket.emit('set_max_rounds', { maxRounds: value }, (res: { success: boolean; error?: string }) => {
+      if (!res.success) {
+        setError(res.error || 'Error al cambiar rondas');
+        setMaxRounds(state.room?.maxRounds || 5);
+      }
+    });
+  };
 
   const currentPlayer = state.room?.players.find(p => p.id === appState.playerId);
   const isHost = currentPlayer?.isHost ?? false;
@@ -30,6 +42,12 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
     socket.on('phase_change', handlePhaseChange);
     return () => { socket.off('phase_change', handlePhaseChange); };
   }, [socket, appState.roomCode, appState.username, currentPlayer?.id]);
+
+  useEffect(() => {
+    if (state.room?.maxRounds) {
+      setMaxRounds(state.room.maxRounds);
+    }
+  }, [state.room?.maxRounds]);
 
   const handleStart = () => {
     if (!socket) return;
@@ -69,6 +87,25 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
           <Chat roomCode={appState.roomCode} />
         </div>
       </div>
+
+      {isHost && (
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <span className="text-sm text-gray-400">Rondas:</span>
+          {[2, 3, 4, 5].map(n => (
+            <button
+              key={n}
+              onClick={() => handleSetMaxRounds(n)}
+              className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
+                maxRounds === n
+                  ? 'bg-gradient-to-r from-primary-600 to-secondary-600 text-white'
+                  : 'bg-gray-800 border border-gray-700 text-gray-400 hover:border-gray-500'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex justify-center gap-4 mt-8">
         <button

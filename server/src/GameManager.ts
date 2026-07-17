@@ -12,7 +12,7 @@ export class GameManager {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code: string;
     do {
-      code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
     } while (this.rooms.has(code));
     return code;
   }
@@ -29,7 +29,6 @@ export class GameManager {
       prompts: [],
       images: [],
       votes: [],
-      roundOrder: [],
       timerEndsAt: null,
     });
     return code;
@@ -58,7 +57,6 @@ export class GameManager {
       isHost: room.players.length === 0,
       score: 0,
       streak: 0,
-      eliminated: false,
       hasSubmitted: false,
       hasVoted: false,
     };
@@ -91,17 +89,20 @@ export class GameManager {
     return { roomCode: roomCode ?? null, playerId };
   }
 
+  setMaxRounds(code: string, maxRounds: number): boolean {
+    const room = this.rooms.get(code);
+    if (!room || room.phase !== 'waiting') return false;
+    if (maxRounds < 2 || maxRounds > 5) return false;
+    room.maxRounds = maxRounds;
+    return true;
+  }
+
   startGame(code: string): boolean {
     const room = this.rooms.get(code);
     if (!room || room.players.length < 2 || room.phase !== 'waiting') return false;
     room.round = 1;
-    room.roundOrder = room.players.filter(p => !p.eliminated).map(p => p.id);
     this.startPromptPhase(room);
     return true;
-  }
-
-  private getActivePlayers(room: Room): Player[] {
-    return room.players.filter(p => !p.eliminated);
   }
 
   private getRandomTheme(): string {
@@ -134,14 +135,14 @@ export class GameManager {
     }
 
     const player = room.players.find(p => p.socketId === socketId);
-    if (!player || player.eliminated || player.hasSubmitted) {
-      console.log(`[submitPrompt] FAIL: player=${!!player}, eliminated=${player?.eliminated}, hasSubmitted=${player?.hasSubmitted}`);
+    if (!player || player.hasSubmitted) {
+      console.log(`[submitPrompt] FAIL: player=${!!player}, hasSubmitted=${player?.hasSubmitted}`);
       return false;
     }
 
     room.prompts.push({ playerId: player.id, prompt: prompt.trim() });
     player.hasSubmitted = true;
-    console.log(`[submitPrompt] OK: player=${player.username}(${player.id}), prompts=${room.prompts.length}/${this.getActivePlayers(room).length}`);
+    console.log(`[submitPrompt] OK: player=${player.username}(${player.id}), prompts=${room.prompts.length}/${room.players.length}`);
 
     return true;
   }
@@ -149,8 +150,7 @@ export class GameManager {
   allPromptsSubmitted(code: string): boolean {
     const room = this.rooms.get(code);
     if (!room) return false;
-    const active = this.getActivePlayers(room);
-    return active.length > 0 && active.every(p => p.hasSubmitted);
+    return room.players.length > 0 && room.players.every(p => p.hasSubmitted);
   }
 
   startGeneratingPhase(code: string): void {
@@ -165,7 +165,7 @@ export class GameManager {
     if (!room || room.phase !== 'generating') return false;
 
     const player = room.players.find(p => p.socketId === socketId);
-    if (!player || player.eliminated) return false;
+    if (!player) return false;
 
     const prompt = room.prompts.find(p => p.playerId === player.id);
     if (!prompt) return false;
@@ -198,8 +198,7 @@ export class GameManager {
   allImagesSubmitted(code: string): boolean {
     const room = this.rooms.get(code);
     if (!room) return false;
-    const active = this.getActivePlayers(room);
-    return active.length > 0 && active.every(p => room.images.some(i => i.playerId === p.id));
+    return room.players.length > 0 && room.players.every(p => room.images.some(i => i.playerId === p.id));
   }
 
   startVotingPhase(code: string): void {
@@ -214,12 +213,11 @@ export class GameManager {
     if (!room || room.phase !== 'voting') return false;
 
     const voter = room.players.find(p => p.socketId === socketId);
-    if (!voter || voter.eliminated || voter.hasVoted) return false;
+    if (!voter || voter.hasVoted) return false;
     if (voter.id === targetId) return false;
-    if (room.votes.some(v => v.voterId === voter.id)) return false;
 
     const target = room.players.find(p => p.id === targetId);
-    if (!target || target.eliminated) return false;
+    if (!target) return false;
 
     room.votes.push({ voterId: voter.id, targetId });
     voter.hasVoted = true;
@@ -229,47 +227,17 @@ export class GameManager {
   allVotesSubmitted(code: string): boolean {
     const room = this.rooms.get(code);
     if (!room) return false;
-    const active = this.getActivePlayers(room);
-    return active.length > 0 && active.every(p => p.hasVoted);
+    return room.players.length > 0 && room.players.every(p => p.hasVoted);
   }
 
   getVoteResults(code: string): { playerId: string; votes: number }[] {
     const room = this.rooms.get(code);
     if (!room) return [];
 
-    const active = this.getActivePlayers(room);
-    return active.map(p => ({
+    return room.players.map(p => ({
       playerId: p.id,
       votes: room.votes.filter(v => v.targetId === p.id).length,
     }));
-  }
-
-  processElimination(code: string): string | null {
-    const room = this.rooms.get(code);
-    if (!room) return null;
-
-    const results = this.getVoteResults(code);
-    if (results.length === 0) return null;
-
-    const maxVotes = Math.max(...results.map(r => r.votes));
-    if (maxVotes === 0) return null;
-
-    const eliminated = results.filter(r => r.votes === maxVotes);
-
-    const eliminatedPlayer = eliminated.length === 1
-      ? eliminated[0]
-      : (() => {
-          const sorted = [...results].sort((a, b) => b.votes - a.votes);
-          const tied = sorted.filter(r => r.votes === maxVotes);
-          return tied[Math.floor(Math.random() * tied.length)];
-        })();
-
-    const player = room.players.find(p => p.id === eliminatedPlayer.playerId);
-    if (player) {
-      player.eliminated = true;
-    }
-
-    return eliminatedPlayer.playerId;
   }
 
   awardPoints(code: string): void {
@@ -277,14 +245,11 @@ export class GameManager {
     if (!room) return;
 
     const results = this.getVoteResults(code);
-    const sorted = [...results].sort((a, b) => a.votes - b.votes);
-
-    sorted.forEach((r, idx) => {
+    results.forEach(r => {
       const player = room.players.find(p => p.id === r.playerId);
-      if (player && !player.eliminated) {
-        const points = sorted.length - idx;
-        player.score += points;
-        if (idx === 0) {
+      if (player) {
+        player.score += r.votes;
+        if (r.votes > 0) {
           player.streak += 1;
         } else {
           player.streak = 0;
@@ -304,13 +269,6 @@ export class GameManager {
     const room = this.rooms.get(code);
     if (!room) return false;
 
-    const active = this.getActivePlayers(room);
-    if (active.length <= 1) {
-      room.phase = 'finished';
-      room.timerEndsAt = null;
-      return false;
-    }
-
     room.round += 1;
     if (room.round > room.maxRounds) {
       room.phase = 'finished';
@@ -325,8 +283,6 @@ export class GameManager {
   getWinner(code: string): Player | null {
     const room = this.rooms.get(code);
     if (!room) return null;
-    const active = this.getActivePlayers(room);
-    if (active.length === 1) return active[0];
     return [...room.players].sort((a, b) => b.score - a.score)[0] || null;
   }
 
@@ -346,7 +302,6 @@ export class GameManager {
         isHost: p.isHost,
         score: p.score,
         streak: p.streak,
-        eliminated: p.eliminated,
         hasSubmitted: p.hasSubmitted,
         hasVoted: p.hasVoted,
       })),
