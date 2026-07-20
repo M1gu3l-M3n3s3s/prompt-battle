@@ -42,6 +42,8 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
   };
 
   const isRevealPhase = phase === 'reveal' || phase === 'finished';
+  const maxVotes = isRevealPhase ? Math.max(...voteResults.map(r => r.votes), 0) : 0;
+  const winnersCount = isRevealPhase ? voteResults.filter(r => r.votes === maxVotes && maxVotes > 0).length : 0;
 
   return (
     <div className="space-y-4">
@@ -58,7 +60,6 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
           const isOwn = img.playerId === playerId;
           const isVotedByMe = votedId === img.playerId;
           const voteCount = img.playerId ? getVoteCount(img.playerId) : 0;
-          const maxVotes = isRevealPhase ? Math.max(...voteResults.map(r => r.votes), 0) : 0;
 
           return (
             <div
@@ -68,7 +69,7 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
                 isVotedByMe ? 'border-primary-500' :
                 'border-gray-800 hover:border-gray-700'
               } ${!hasVoted && !isOwn && phase === 'voting' ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
-              onClick={() => !isOwn && handleVote(img.playerId || '')}
+              onClick={() => img.playerId && !isOwn && handleVote(img.playerId)}
             >
               <ImageWithRetry src={img.imageUrl} alt={img.prompt} />
 
@@ -77,7 +78,7 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
                   <span className="text-sm font-medium text-gray-200">
                     {player?.username || 'Desconocido'}
                   </span>
-                  {isOwn && !isRevealPhase && <span className="text-xs text-primary-400">(tu imagen)</span>}
+                  {isOwn && <span className="text-xs text-primary-400">(tu imagen)</span>}
                   <span className="ml-auto text-sm text-gray-500">{voteCount} votos</span>
                 </div>
               )}
@@ -110,7 +111,7 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
 
               {isRevealPhase && voteCount === maxVotes && maxVotes > 0 && (
                 <div className="absolute top-2 left-2 px-3 py-1 bg-green-500/80 rounded-lg text-xs font-bold animate-bounce-in">
-                  🏆 GANADOR
+                  {winnersCount > 1 ? '🤝 EMPATE' : '🏆 GANADOR'}
                 </div>
               )}
             </div>

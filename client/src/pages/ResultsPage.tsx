@@ -12,14 +12,13 @@ export default function ResultsPage({ appState, onNavigate }: Props) {
   const { state, dispatch } = useGame();
   const { room, winner } = state;
 
-  const currentPlayer = room?.players.find(p => p.id === appState.playerId);
   const sortedPlayers = [...(room?.players || [])].sort((a, b) => b.score - a.score);
 
   const isWinner = winner?.id === appState.playerId;
 
   const handlePlayAgain = () => {
-    dispatch({ type: 'RESET' });
     socket?.emit('leave_room');
+    dispatch({ type: 'RESET' });
     onNavigate('home');
   };
 

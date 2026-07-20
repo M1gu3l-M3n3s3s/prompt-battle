@@ -43,6 +43,7 @@ export interface RoomState {
   votes: VoteData[];
   voteResults: VoteResult[];
   timerEndsAt: number | null;
+  timerMax: number;
 }
 
 export interface GameOverData {

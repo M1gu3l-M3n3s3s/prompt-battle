@@ -51,7 +51,7 @@ export default function GamePage({ appState, onNavigate }: Props) {
             {getPhaseLabel(phase)}
           </p>
         </div>
-        <Timer seconds={timer} max={phase === 'generating' ? 60 : phase === 'reveal' ? 10 : 30} />
+        <Timer seconds={timer} max={room.timerMax || 60} />
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">{appState.username}</span>
           <span className="text-xs text-gray-600">Sala: {room.code}</span>

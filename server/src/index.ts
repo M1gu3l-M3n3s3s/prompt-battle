@@ -7,14 +7,14 @@ import { setupSocket } from './socket';
 import { getImage } from './imageProxy';
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }));
 
 const clientDist = path.join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: process.env.ALLOWED_ORIGIN || '*', methods: ['GET', 'POST'] },
 });
 
 setupSocket(io);
@@ -31,7 +31,10 @@ app.get('/api/images/:roomId/:hash', (req, res) => {
 });
 
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
+  const indexPath = path.join(clientDist, 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) res.status(404).send('Not found');
+  });
 });
 
 const PORT = process.env.PORT || 3001;

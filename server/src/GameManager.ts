@@ -4,9 +4,12 @@ import {
   THEMES, PROMPT_TIME, GENERATING_TIME, VOTING_TIME, REVEAL_TIME,
 } from './types';
 
+const EMPTY_ROOM_TTL_MS = 60_000;
+
 export class GameManager {
   private rooms: Map<string, Room> = new Map();
   private playerRooms: Map<string, string> = new Map();
+  private roomCreatedAt: Map<string, number> = new Map();
 
   generateRoomCode(): string {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -31,7 +34,20 @@ export class GameManager {
       votes: [],
       timerEndsAt: null,
     });
+    this.roomCreatedAt.set(code, Date.now());
+    this.sweepEmptyRooms();
     return code;
+  }
+
+  private sweepEmptyRooms(): void {
+    const now = Date.now();
+    for (const [code, createdAt] of this.roomCreatedAt) {
+      const room = this.rooms.get(code);
+      if (room && room.players.length === 0 && room.phase === 'waiting' && now - createdAt > EMPTY_ROOM_TTL_MS) {
+        this.rooms.delete(code);
+        this.roomCreatedAt.delete(code);
+      }
+    }
   }
 
   getRoom(code: string): Room | undefined {
@@ -45,14 +61,18 @@ export class GameManager {
   }
 
   addPlayer(code: string, username: string, socketId: string): Player | null {
+    if (typeof username !== 'string' || username.trim().length < 2 || username.trim().length > 20) return null;
+
     const room = this.rooms.get(code);
     if (!room) return null;
     if (room.players.length >= 8) return null;
     if (room.phase !== 'waiting') return null;
 
+    const trimmedUsername = username.trim();
+
     const player: Player = {
       id: uuidv4(),
-      username,
+      username: trimmedUsername,
       socketId,
       isHost: room.players.length === 0,
       score: 0,
@@ -82,10 +102,12 @@ export class GameManager {
       }
       if (room.players.length === 0) {
         this.rooms.delete(roomCode!);
+        this.roomCreatedAt.delete(roomCode!);
       }
     }
 
     this.playerRooms.delete(socketId);
+    this.sweepEmptyRooms();
     return { roomCode: roomCode ?? null, playerId };
   }
 
@@ -160,20 +182,6 @@ export class GameManager {
     room.timerEndsAt = Date.now() + GENERATING_TIME * 1000;
   }
 
-  submitImage(socketId: string, imageUrl: string): boolean {
-    const room = this.getRoomBySocket(socketId);
-    if (!room || room.phase !== 'generating') return false;
-
-    const player = room.players.find(p => p.socketId === socketId);
-    if (!player) return false;
-
-    const prompt = room.prompts.find(p => p.playerId === player.id);
-    if (!prompt) return false;
-
-    room.images.push({ playerId: player.id, imageUrl, prompt: prompt.prompt });
-    return true;
-  }
-
   submitImages(code: string, images: { playerId: string; imageUrl: string }[]): boolean {
     const room = this.rooms.get(code);
     if (!room || room.phase !== 'generating') {
@@ -183,6 +191,7 @@ export class GameManager {
 
     let pushed = 0;
     for (const img of images) {
+      if (room.images.some(i => i.playerId === img.playerId)) continue;
       const prompt = room.prompts.find(p => p.playerId === img.playerId);
       if (!prompt) {
         console.log(`[submitImages] SKIP: playerId=${img.playerId} not found in prompts`);
@@ -282,8 +291,11 @@ export class GameManager {
 
   getWinner(code: string): Player | null {
     const room = this.rooms.get(code);
-    if (!room) return null;
-    return [...room.players].sort((a, b) => b.score - a.score)[0] || null;
+    if (!room || room.players.length === 0) return null;
+
+    const sorted = [...room.players].sort((a, b) => b.score - a.score);
+    if (sorted[0].score === 0 && sorted.every(p => p.score === 0)) return null;
+    return sorted[0] || null;
   }
 
   getPublicRoomState(code: string) {
@@ -315,6 +327,11 @@ export class GameManager {
         ? this.getVoteResults(code)
         : [],
       timerEndsAt: room.timerEndsAt,
+      timerMax: room.phase === 'generating' ? GENERATING_TIME
+        : room.phase === 'reveal' ? REVEAL_TIME
+        : room.phase === 'prompt_writing' ? PROMPT_TIME
+        : room.phase === 'voting' ? VOTING_TIME
+        : 0,
     };
 
     if (room.phase === 'voting' || room.phase === 'reveal') {

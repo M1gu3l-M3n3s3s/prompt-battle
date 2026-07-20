@@ -9,7 +9,7 @@ export default function Timer({ seconds, max = 60 }: Props) {
   const isLow = seconds <= 10;
   const isCritical = seconds <= 5;
   const circumference = 2 * Math.PI * 28;
-  const progress = Math.min(seconds / max, 1);
+  const progress = max > 0 ? Math.min(seconds / max, 1) : 0;
 
   return (
     <div className={`flex items-center gap-3 ${isCritical ? 'animate-shake' : ''}`}>

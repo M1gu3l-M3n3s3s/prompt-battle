@@ -1,11 +1,12 @@
-import type { Player } from '../types';
+import type { Player, GamePhase } from '../types';
 
 interface Props {
   players: Player[];
   currentPlayerId: string;
+  phase?: GamePhase;
 }
 
-export default function PlayerList({ players, currentPlayerId }: Props) {
+export default function PlayerList({ players, currentPlayerId, phase }: Props) {
   return (
     <div className="bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-800">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -35,7 +36,7 @@ export default function PlayerList({ players, currentPlayerId }: Props) {
                 {player.streak > 0 && <span className="text-accent-400">🔥 {player.streak}</span>}
               </div>
             </div>
-            {player.hasSubmitted && <span className="text-green-400 text-sm">✓</span>}
+            {phase === 'prompt_writing' && player.hasSubmitted && <span className="text-green-400 text-sm">✓</span>}
           </div>
         ))}
         {players.length === 0 && (

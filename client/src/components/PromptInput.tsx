@@ -24,6 +24,8 @@ export default function PromptInput({ playerId }: Props) {
     socket.emit('submit_prompt', { prompt: prompt.trim() }, (res: { success: boolean }) => {
       if (res.success) {
         setSubmitted(true);
+      } else {
+        setError('No se pudo enviar el prompt. Intenta de nuevo.');
       }
     });
   };

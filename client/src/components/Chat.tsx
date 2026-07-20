@@ -19,13 +19,14 @@ export default function Chat({ roomCode }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMessages([]);
     if (!socket) return;
     const handler = (msg: Message) => {
       setMessages(prev => [...prev.slice(-99), msg]);
     };
     socket.on('chat_message', handler);
     return () => { socket.off('chat_message', handler); };
-  }, [socket]);
+  }, [socket, roomCode]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

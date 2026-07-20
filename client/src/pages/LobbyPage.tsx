@@ -12,7 +12,7 @@ interface Props {
 
 export default function LobbyPage({ appState, onNavigate }: Props) {
   const { socket } = useSocket();
-  const { state } = useGame();
+  const { state, dispatch } = useGame();
   const [error, setError] = useState('');
   const [maxRounds, setMaxRounds] = useState(state.room?.maxRounds || 5);
 
@@ -59,6 +59,7 @@ export default function LobbyPage({ appState, onNavigate }: Props) {
 
   const handleLeave = () => {
     socket?.emit('leave_room');
+    dispatch({ type: 'RESET' });
     onNavigate('home');
   };
 

@@ -2,12 +2,24 @@ import { Server, Socket } from 'socket.io';
 import { GameManager } from './GameManager';
 import * as imageProxy from './imageProxy';
 
+const DISCONNECT_GRACE_MS = 10_000;
+
 export function setupSocket(io: Server): GameManager {
   const gameManager = new GameManager();
   const activeTimers = new Set<string>();
+  const pendingDisconnects = new Map<string, NodeJS.Timeout>();
+
+  function clearTimeoutIfExists(socketId: string) {
+    const timer = pendingDisconnects.get(socketId);
+    if (timer) {
+      clearTimeout(timer);
+      pendingDisconnects.delete(socketId);
+    }
+  }
 
   io.on('connection', (socket: Socket) => {
     console.log(`[+] ${socket.id} connected`);
+    clearTimeoutIfExists(socket.id);
 
     socket.on('create_room', (callback: (res: { code: string }) => void) => {
       const code = gameManager.createRoom();
@@ -22,7 +34,7 @@ export function setupSocket(io: Server): GameManager {
         if (!room) return callback({ success: false, error: 'Sala no encontrada' });
         if (room.players.length >= 8) return callback({ success: false, error: 'Sala llena (máx 8)' });
         if (room.phase !== 'waiting') return callback({ success: false, error: 'La partida ya comenzó' });
-        return callback({ success: false, error: 'Error al unirse' });
+        return callback({ success: false, error: 'Nombre inválido (2-20 caracteres)' });
       }
 
       socket.join(code);
@@ -40,7 +52,7 @@ export function setupSocket(io: Server): GameManager {
       callback({ success: true });
       io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
       io.to(room.code).emit('phase_change', 'prompt_writing');
-      startTimerLoop(io, gameManager, room.code, activeTimers);
+      ensureTimerLoop(io, gameManager, room.code, activeTimers);
     });
 
     socket.on('set_max_rounds', (data: { maxRounds: number }, callback: (res: { success: boolean; error?: string }) => void) => {
@@ -54,25 +66,21 @@ export function setupSocket(io: Server): GameManager {
       io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
     });
 
-      socket.on('submit_prompt', (data: { prompt: string }, callback: (res: { success: boolean }) => void) => {
-        const success = gameManager.submitPrompt(socket.id, data.prompt);
-        console.log(`[submit_prompt handler] success=${success}, socketId=${socket.id}`);
-        callback({ success });
+    socket.on('submit_prompt', (data: { prompt: string }, callback: (res: { success: boolean }) => void) => {
+      const success = gameManager.submitPrompt(socket.id, data.prompt);
+      callback({ success });
 
-        const room = gameManager.getRoomBySocket(socket.id);
-        if (room) {
-          const allSubmitted = gameManager.allPromptsSubmitted(room.code);
-          console.log(`[submit_prompt handler] allSubmitted=${allSubmitted}, room=${room.code}, phase=${room.phase}`);
+      const room = gameManager.getRoomBySocket(socket.id);
+      if (room) {
+        io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
+        if (gameManager.allPromptsSubmitted(room.code)) {
+          gameManager.startGeneratingPhase(room.code);
+          io.to(room.code).emit('phase_change', 'generating');
           io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
-          if (allSubmitted) {
-            console.log(`[submit_prompt handler] ALL SUBMITTED -> starting generation`);
-            gameManager.startGeneratingPhase(room.code);
-            io.to(room.code).emit('phase_change', 'generating');
-            io.to(room.code).emit('room_update', gameManager.getPublicRoomState(room.code));
-            generateImages(io, gameManager, room.code);
-          }
+          generateImages(io, gameManager, room.code);
         }
-      });
+      }
+    });
 
     socket.on('submit_vote', (data: { targetId: string }, callback: (res: { success: boolean; error?: string }) => void) => {
       const success = gameManager.submitVote(socket.id, data.targetId);
@@ -102,37 +110,51 @@ export function setupSocket(io: Server): GameManager {
       const player = room.players.find(p => p.socketId === socket.id);
       if (!player) return;
       if (typeof data.text !== 'string' || data.text.trim().length === 0 || data.text.length > 200) return;
-      const msg = { id: `${Date.now()}-${socket.id}`, username: player.username, text: data.text.trim(), timestamp: Date.now() };
+      const msg = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, username: player.username, text: data.text.trim(), timestamp: Date.now() };
       io.to(room.code).emit('chat_message', msg);
     });
 
     socket.on('leave_room', () => {
+      clearTimeoutIfExists(socket.id);
       const { roomCode } = gameManager.removePlayer(socket.id);
       if (roomCode) {
+        io.to(roomCode).emit('room_update', gameManager.getPublicRoomState(roomCode));
         socket.leave(roomCode);
         const room = gameManager.getRoom(roomCode);
         if (!room) imageProxy.clearRoom(roomCode);
-        io.to(roomCode).emit('room_update', gameManager.getPublicRoomState(roomCode));
       }
     });
 
     socket.on('disconnect', () => {
       console.log(`[-] ${socket.id} disconnected`);
-      const { roomCode } = gameManager.removePlayer(socket.id);
-      if (roomCode) {
-        socket.leave(roomCode);
-        const room = gameManager.getRoom(roomCode);
-        if (!room) imageProxy.clearRoom(roomCode);
-        io.to(roomCode).emit('room_update', gameManager.getPublicRoomState(roomCode));
-      }
+      const room = gameManager.getRoomBySocket(socket.id);
+      if (!room) return;
+
+      const roomCode = room.code;
+      const timer = setTimeout(() => {
+        pendingDisconnects.delete(socket.id);
+        const { roomCode: rc } = gameManager.removePlayer(socket.id);
+        if (rc) {
+          socket.leave(rc);
+          const r = gameManager.getRoom(rc);
+          if (!r) imageProxy.clearRoom(rc);
+          io.to(rc).emit('room_update', gameManager.getPublicRoomState(rc));
+        }
+      }, DISCONNECT_GRACE_MS);
+
+      pendingDisconnects.set(socket.id, timer);
     });
   });
 
   return gameManager;
 }
 
-function startTimerLoop(io: Server, gm: GameManager, code: string, activeTimers: Set<string>) {
+function ensureTimerLoop(io: Server, gm: GameManager, code: string, activeTimers: Set<string>) {
   if (activeTimers.has(code)) return;
+  startTimerLoop(io, gm, code, activeTimers);
+}
+
+function startTimerLoop(io: Server, gm: GameManager, code: string, activeTimers: Set<string>) {
   activeTimers.add(code);
 
   const tick = () => {
@@ -156,10 +178,7 @@ function startTimerLoop(io: Server, gm: GameManager, code: string, activeTimers:
 
 function handlePhaseTimeout(io: Server, gm: GameManager, code: string) {
   const room = gm.getRoom(code);
-  if (!room) {
-    console.log(`[handlePhaseTimeout] room not found`);
-    return;
-  }
+  if (!room) return;
 
   console.log(`[handlePhaseTimeout] TIMEOUT for phase=${room.phase}, room=${code}`);
 
@@ -195,10 +214,7 @@ function hashString(str: string): number {
 
 async function generateImages(io: Server, gm: GameManager, code: string) {
   const room = gm.getRoom(code);
-  if (!room) {
-    console.log(`[generateImages] FAIL: room not found for code=${code}`);
-    return;
-  }
+  if (!room) return;
 
   console.log(`[generateImages] START: prompts=${room.prompts.length}, phase=${room.phase}`);
 
@@ -214,6 +230,12 @@ async function generateImages(io: Server, gm: GameManager, code: string) {
     imageProxy.fetchAndCache(code, hash, pollinationsUrl).then(success => {
       if (success) {
         io.to(code).emit('room_update', gm.getPublicRoomState(code));
+        const r = gm.getRoom(code);
+        if (r && r.phase === 'generating' && gm.allImagesSubmitted(code)) {
+          gm.startVotingPhase(code);
+          io.to(code).emit('phase_change', 'voting');
+          io.to(code).emit('room_update', gm.getPublicRoomState(code));
+        }
       }
     });
   }
@@ -231,13 +253,16 @@ function endVotingPhase(io: Server, gm: GameManager, code: string) {
 }
 
 function advanceAfterReveal(io: Server, gm: GameManager, code: string) {
+  const room = gm.getRoom(code);
+  if (!room || room.phase !== 'reveal') return;
+
   imageProxy.clearRoom(code);
   const hasNext = gm.nextRound(code);
-  const room = gm.getRoom(code);
+  const updatedRoom = gm.getRoom(code);
 
-  if (!room) return;
+  if (!updatedRoom) return;
 
-  if (room.phase === 'finished' || !hasNext) {
+  if (updatedRoom.phase === 'finished' || !hasNext) {
     const winner = gm.getWinner(code);
     if (winner) {
       const { socketId: _, ...publicWinner } = winner;
