@@ -63,7 +63,7 @@ export default function VotingGallery({ images, votes, playerId, phase, voteResu
 
           return (
             <div
-              key={idx}
+              key={img.playerId || `img-${idx}`}
               className={`relative bg-gray-900/80 backdrop-blur-sm rounded-2xl border overflow-hidden transition-all duration-300 ${
                 isRevealPhase && voteCount === maxVotes && maxVotes > 0 ? 'border-green-500/50 ring-2 ring-green-500/20' :
                 isVotedByMe ? 'border-primary-500' :

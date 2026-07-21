@@ -216,25 +216,41 @@ async function generateImages(io: Server, gm: GameManager, code: string) {
   const room = gm.getRoom(code);
   if (!room) return;
 
-  console.log(`[generateImages] START: prompts=${room.prompts.length}, phase=${room.phase}`);
+  const total = room.prompts.length;
+  let completed = 0;
+  let transitioned = false;
+
+  console.log(`[generateImages] START: prompts=${total}, phase=${room.phase}`);
 
   const imageEntries: { playerId: string; imageUrl: string }[] = [];
 
   for (const p of room.prompts) {
-    const hash = String(hashString(p.prompt + code));
+    const hash = String(hashString(p.playerId + p.prompt + code));
     const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(p.prompt)}?width=400&height=400&seed=${hash}&nologo=true`;
     const internalUrl = `/api/images/${code}/${hash}`;
 
     imageEntries.push({ playerId: p.playerId, imageUrl: internalUrl });
 
     imageProxy.fetchAndCache(code, hash, pollinationsUrl).then(success => {
+      completed++;
       if (success) {
         io.to(code).emit('room_update', gm.getPublicRoomState(code));
+      }
+
+      if (!transitioned) {
         const r = gm.getRoom(code);
-        if (r && r.phase === 'generating' && gm.allImagesSubmitted(code)) {
-          gm.startVotingPhase(code);
-          io.to(code).emit('phase_change', 'voting');
-          io.to(code).emit('room_update', gm.getPublicRoomState(code));
+        if (r && r.phase === 'generating') {
+          if (success && gm.allImagesSubmitted(code)) {
+            transitioned = true;
+            gm.startVotingPhase(code);
+            io.to(code).emit('phase_change', 'voting');
+            io.to(code).emit('room_update', gm.getPublicRoomState(code));
+          } else if (completed === total) {
+            transitioned = true;
+            gm.startVotingPhase(code);
+            io.to(code).emit('phase_change', 'voting');
+            io.to(code).emit('room_update', gm.getPublicRoomState(code));
+          }
         }
       }
     });

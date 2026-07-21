@@ -175,11 +175,12 @@ export class GameManager {
     return room.players.length > 0 && room.players.every(p => p.hasSubmitted);
   }
 
-  startGeneratingPhase(code: string): void {
+  startGeneratingPhase(code: string): boolean {
     const room = this.rooms.get(code);
-    if (!room) return;
+    if (!room || room.phase !== 'prompt_writing') return false;
     room.phase = 'generating';
     room.timerEndsAt = Date.now() + GENERATING_TIME * 1000;
+    return true;
   }
 
   submitImages(code: string, images: { playerId: string; imageUrl: string }[]): boolean {
@@ -210,11 +211,12 @@ export class GameManager {
     return room.players.length > 0 && room.players.every(p => room.images.some(i => i.playerId === p.id));
   }
 
-  startVotingPhase(code: string): void {
+  startVotingPhase(code: string): boolean {
     const room = this.rooms.get(code);
-    if (!room) return;
+    if (!room || room.phase !== 'generating') return false;
     room.phase = 'voting';
     room.timerEndsAt = Date.now() + VOTING_TIME * 1000;
+    return true;
   }
 
   submitVote(socketId: string, targetId: string): boolean {
@@ -267,11 +269,12 @@ export class GameManager {
     });
   }
 
-  startRevealPhase(code: string): void {
+  startRevealPhase(code: string): boolean {
     const room = this.rooms.get(code);
-    if (!room) return;
+    if (!room || room.phase !== 'voting') return false;
     room.phase = 'reveal';
     room.timerEndsAt = Date.now() + REVEAL_TIME * 1000;
+    return true;
   }
 
   nextRound(code: string): boolean {

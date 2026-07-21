@@ -26,7 +26,7 @@ app.get('/api/images/:roomId/:hash', (req, res) => {
     return res.status(404).send('Image not found');
   }
   res.set('Content-Type', 'image/png');
-  res.set('Cache-Control', 'public, max-age=3600');
+  res.set('Cache-Control', 'public, max-age=60');
   res.send(image);
 });
 
